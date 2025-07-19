@@ -221,12 +221,11 @@ where
                         }
                     }
                     return removed;
-                } else {
-                    // This edge and our key have a common prefix but the key does not match the
-                    // entire edge. Since no other edge can match our key if the tree is well
-                    // formed, this means that there is no such key in our tree.
-                    return None;
                 }
+                // This edge and our key have a common prefix but the key does not match the
+                // entire edge. Since no other edge can match our key if the tree is well
+                // formed, this means that there is no such key in our tree.
+                return None;
             }
         }
         if let Some((i, removed)) = cleanup_node {
