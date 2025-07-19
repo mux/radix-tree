@@ -175,35 +175,28 @@ where
         if key.is_empty() {
             return self.value.replace(value);
         }
-        let mut split_at = None;
-        for (i, (prefix, child)) in self.edges.iter_mut().enumerate() {
+        for (prefix, child) in &mut self.edges {
             let common_len = longest_common_prefix(prefix, key);
             if common_len > 0 {
                 if common_len == prefix.len() {
                     return child.insert(&key[common_len..], value);
                 } else {
                     // We need to split the node.
-                    split_at = Some((i, common_len));
-                    break;
+                    //split_at = Some((i, common_len));
+                    let prefix_rest = prefix.drain(common_len..).collect();
+                    replace_with_or_abort(child, |node| RadixTree {
+                        value: None,
+                        edges: vec![
+                            (prefix_rest, node),
+                            (key[common_len..].to_vec(), RadixTree::with_value(value)),
+                        ],
+                    });
+                    return None;
                 }
             }
         }
-        if let Some((i, common_len)) = split_at {
-            unsafe {
-                let (prefix, node) = self.edges.get_unchecked_mut(i);
-                let prefix_rest = prefix.drain(common_len..).collect();
-                replace_with_or_abort(node, |node| RadixTree {
-                    value: None,
-                    edges: vec![
-                        (prefix_rest, node),
-                        (key[common_len..].to_vec(), RadixTree::with_value(value)),
-                    ],
-                });
-            }
-        } else {
-            self.edges
-                .push((key.to_vec(), RadixTree::with_value(value)));
-        }
+        self.edges
+            .push((key.to_vec(), RadixTree::with_value(value)));
         None
     }
 
