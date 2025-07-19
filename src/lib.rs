@@ -5,6 +5,37 @@
 /// every invariant.
 use replace_with::*;
 
+pub trait AsVector<K> {
+    fn as_vec(&self) -> Vec<K>;
+}
+
+impl AsVector<char> for str {
+    fn as_vec(&self) -> Vec<char> {
+        self.chars().collect()
+    }
+}
+
+impl AsVector<u8> for str {
+    fn as_vec(&self) -> Vec<u8> {
+        self.as_bytes().to_vec()
+    }
+}
+
+impl AsVector<char> for String {
+    fn as_vec(&self) -> Vec<char> {
+        self.chars().collect()
+    }
+}
+
+impl<K> AsVector<K> for &[K]
+where
+    K: Copy,
+{
+    fn as_vec(&self) -> Vec<K> {
+        self.to_vec()
+    }
+}
+
 #[derive(PartialEq, Eq, Debug)]
 pub struct RadixTree<K, V>
 where
