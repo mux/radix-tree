@@ -180,18 +180,17 @@ where
             if common_len > 0 {
                 if common_len == prefix.len() {
                     return child.insert(&key[common_len..], value);
-                } else {
-                    // We need to split the node.
-                    let prefix_rest = prefix.drain(common_len..).collect();
-                    replace_with_or_abort(child, |node| RadixTree {
-                        value: None,
-                        edges: vec![
-                            (prefix_rest, node),
-                            (key[common_len..].to_vec(), RadixTree::with_value(value)),
-                        ],
-                    });
-                    return None;
                 }
+                // We need to split the node.
+                let prefix_rest = prefix.drain(common_len..).collect();
+                replace_with_or_abort(child, |node| RadixTree {
+                    value: None,
+                    edges: vec![
+                        (prefix_rest, node),
+                        (key[common_len..].to_vec(), RadixTree::with_value(value)),
+                    ],
+                });
+                return None;
             }
         }
         self.edges
@@ -267,7 +266,7 @@ mod tests {
     }
 
     #[test]
-    fn it_works() {
+    fn radix_tree_works() {
         let mut tree = RadixTree::new();
         assert_eq!(tree.value, None);
         assert_eq!(tree.insert(b"foo", 42), None);
