@@ -203,7 +203,7 @@ where
         if key.is_empty() {
             return self.value.take();
         }
-        let mut cleanup_at = None;
+        let mut cleanup_node = None;
         for (i, (prefix, child)) in self.edges.iter_mut().enumerate() {
             let common_len = longest_common_prefix(prefix, key);
             if common_len > 0 {
@@ -211,8 +211,15 @@ where
                     let removed = child.remove(&key[common_len..]);
                     // If something was removed and the child node doesn't hold a value, we might need to do some cleanup.
                     if removed.is_some() && child.value.is_none() {
-                        cleanup_at = Some((i, removed));
-                        break;
+                        if child.edges.is_empty() {
+                            cleanup_node = Some((i, removed));
+                            break;
+                        }
+                        if child.edges.len() == 1 {
+                            let (child_prefix, grandchild) = child.edges.remove(0);
+                            prefix.extend(child_prefix);
+                            *child = grandchild;
+                        }
                     }
                     return removed;
                 } else {
@@ -223,18 +230,8 @@ where
                 }
             }
         }
-        if let Some((i, removed)) = cleanup_at {
-            unsafe {
-                let (_, child) = self.edges.get_unchecked(i);
-                if child.edges.is_empty() {
-                    self.edges.remove(i);
-                } else if child.edges.len() == 1 {
-                    let (prefix, child) = self.edges.get_unchecked_mut(i);
-                    let (child_prefix, grandchild) = child.edges.remove(0);
-                    prefix.extend(child_prefix);
-                    *child = grandchild;
-                }
-            }
+        if let Some((i, removed)) = cleanup_node {
+            self.edges.remove(i);
             return removed;
         }
         None
