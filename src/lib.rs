@@ -350,7 +350,7 @@ mod tests {
 
         assert_eq!(tree.remove(b"bar"), Some(13));
         println!("{tree:?}");
-        // XXX Check that we now have "ba" -> "rbie" and "ba" -> "z""
+        // XXX Check that we now have "ba" -> "rbie" and "ba" -> "z"
         assert_eq!(tree.get(b"bar"), None);
         assert_eq!(tree.remove(b"baz"), Some(7));
         assert_eq!(tree.remove(b"baz"), None);
