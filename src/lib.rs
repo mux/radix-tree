@@ -182,7 +182,6 @@ where
                     return child.insert(&key[common_len..], value);
                 } else {
                     // We need to split the node.
-                    //split_at = Some((i, common_len));
                     let prefix_rest = prefix.drain(common_len..).collect();
                     replace_with_or_abort(child, |node| RadixTree {
                         value: None,
@@ -267,22 +266,23 @@ mod tests {
         assert_eq!(longest_common_prefix(b"bar", b"baz"), 2);
         assert_eq!(longest_common_prefix(b"bar", b"barbie"), 3);
         assert_eq!(longest_common_prefix(b"foo", b"bar"), 0);
+        assert_eq!(longest_common_prefix(b"foo", b"foo"), 3);
     }
 
     #[test]
     fn it_works() {
         let mut tree = RadixTree::new();
-        assert!(tree.value.is_none());
-        tree.insert(b"foo", 42);
-        assert!(tree.value.is_none());
+        assert_eq!(tree.value, None);
+        assert_eq!(tree.insert(b"foo", 42), None);
+        assert_eq!(tree.value, None);
         assert_eq!(tree.edges.len(), 1);
         let _node = tree.lookup(b"foo");
         assert_eq!(_node.and_then(|node| node.value), Some(42));
         assert!(_node.is_some_and(|node| node.edges.is_empty()));
 
-        tree.insert(b"bar", 13);
+        assert!(tree.insert(b"bar", 13).is_none());
         assert_eq!(tree.get(b"bar"), Some(&13));
-        tree.insert(b"baz", 7);
+        assert!(tree.insert(b"baz", 7).is_none());
         assert_eq!(tree.get(b"baz"), Some(&7));
         // This should have split the "bar" node into a "ba" node with one "r" edge and one "z"
         // edge with the values of "bar" and "baz" respectively.
@@ -298,13 +298,13 @@ mod tests {
             prefix == b"z" && child.value == Some(7)
         }));
 
-        tree.insert(b"ba", 18);
+        assert_eq!(tree.insert(b"ba", 18), None);
         assert_eq!(tree.get(b"ba"), Some(&18));
-        tree.insert(b"barbie", 23);
+        assert_eq!(tree.insert(b"barbie", 23), None);
         assert_eq!(tree.get(b"barbie"), Some(&23));
-        assert!(tree.get(b"bag").is_none());
-        assert!(tree.get(b"qux").is_none());
-        tree.insert(b"ba", 27);
+        assert_eq!(tree.get(b"bag"), None);
+        assert_eq!(tree.get(b"qux"), None);
+        assert_eq!(tree.insert(b"ba", 27), Some(18));
         assert_eq!(tree.get(b"ba"), Some(&27));
 
         println!("Keys matching prefix \"ba\" and their values");
@@ -325,8 +325,8 @@ mod tests {
         assert_eq!(tree.remove(b"bar"), Some(13));
         println!("{tree:?}");
         // XXX Check that we now have "ba" -> "rbie" and "ba" -> "z""
-        assert!(tree.get(b"bar").is_none());
+        assert_eq!(tree.get(b"bar"), None);
         assert_eq!(tree.remove(b"baz"), Some(7));
-        assert!(tree.remove(b"baz").is_none());
+        assert_eq!(tree.remove(b"baz"), None);
     }
 }
