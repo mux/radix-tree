@@ -96,8 +96,6 @@ where
 
     // A bunch of iterators for various needs. We probably also need add keys_with(),
     // keys_with_fast(), iter_with_fast() and into_iter() variants as well.
-
-    // I wonder if there's a better way to write this.
     pub fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = (Vec<K>, &'a V)> + 'a> {
         Box::new(
             self.value
@@ -142,13 +140,8 @@ where
         T: AsSlice<K>,
     {
         let key = key.as_slice();
-        if key.is_empty() {
-            return self.values();
-        }
-        for (prefix, child) in &self.edges {
-            if let Some(rest) = key.strip_prefix(prefix.as_slice()) {
-                return child.values_with(rest);
-            }
+        if let Some(node) = self.lookup(key) {
+            return node.values();
         }
         Box::new(std::iter::empty())
     }
@@ -161,13 +154,19 @@ where
         T: AsSlice<K>,
     {
         let key = key.as_slice();
-        if key.is_empty() {
-            return self.iter();
+        if let Some(node) = self.lookup(key) {
+            return node.iter();
         }
-        for (prefix, child) in &self.edges {
-            if let Some(rest) = key.strip_prefix(prefix.as_slice()) {
-                return child.iter_with(rest);
-            }
+        Box::new(std::iter::empty())
+    }
+
+    pub fn iter_with_fast<'a, T>(&'a self, key: T) -> Box<dyn Iterator<Item = (Vec<K>, &'a V)> + 'a>
+    where
+        T: AsSlice<K>,
+    {
+        let key = key.as_slice();
+        if let Some(node) = self.lookup(key) {
+            return node.iter_fast();
         }
         Box::new(std::iter::empty())
     }
