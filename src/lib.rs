@@ -1,6 +1,4 @@
-/// A Radix Tree implementation. Written mostly for fun and to learn Rust. Probably sub-optimal in
-/// various ways, although I tried to reduce allocations and copies as much as possible by using
-/// the replace_with crate, as well as Option::take() and Option::replace() as appropriate.
+/// A Radix Tree implementation. Written mostly for fun and probably sub-optimal in various ways.
 /// Hopefully not too buggy - there are a few tests but they don't even come close to covering
 /// every invariant.
 use replace_with::*;
