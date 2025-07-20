@@ -92,9 +92,15 @@ where
         self.edges.clear();
     }
 
-    // A bunch of iterators for various needs. We need iter_mut() and into_iter() as well. All the
-    // "with" variants returns only elements matching the given prefix, and all the "fast" variants
-    // return relative keys to avoid the performance overhead of constructing full keys.
+    pub fn contains_key<T>(&self, key: T) -> bool
+    where
+        T: AsSlice<K>,
+    {
+        self.get(key).is_some()
+    }
+
+    // All the iterators. We need into_iter() as well. The "fast" variants return relative keys to
+    // avoid the performance overhead of reconstructing full keys.
 
     pub fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = (Vec<K>, &'a V)> + 'a> {
         Box::new(
@@ -112,7 +118,22 @@ where
         )
     }
 
-    // Like iter() but we don't construct the full keys - useful for performance.
+    pub fn iter_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = (Vec<K>, &'a mut V)> + 'a> {
+        Box::new(
+            self.value
+                .as_mut()
+                .map(|value| (Vec::new(), value))
+                .into_iter()
+                .chain(self.edges.iter_mut().flat_map(|(prefix, node)| {
+                    node.iter_mut().map(|(inner_prefix, value)| {
+                        let mut prefix = prefix.clone();
+                        prefix.extend(inner_prefix);
+                        (prefix, value)
+                    })
+                })),
+        )
+    }
+
     pub fn iter_fast<'a>(&'a self) -> Box<dyn Iterator<Item = (Vec<K>, &'a V)> + 'a> {
         Box::new(
             self.value
@@ -120,6 +141,20 @@ where
                 .map(|value| (Vec::new(), value))
                 .into_iter()
                 .chain(self.edges.iter().flat_map(|(_, node)| node.iter_fast())),
+        )
+    }
+
+    pub fn iter_fast_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = (Vec<K>, &'a mut V)> + 'a> {
+        Box::new(
+            self.value
+                .as_mut()
+                .map(|value| (Vec::new(), value))
+                .into_iter()
+                .chain(
+                    self.edges
+                        .iter_mut()
+                        .flat_map(|(_, node)| node.iter_fast_mut()),
+                ),
         )
     }
 
@@ -131,70 +166,16 @@ where
         Box::new(self.iter_fast().map(|(key, _)| key))
     }
 
-    pub fn keys_with<'a, T>(&'a self, key: T) -> Box<dyn Iterator<Item = Vec<K>> + 'a>
-    where
-        T: AsSlice<K>,
-    {
-        let key = key.as_slice();
-        if let Some(node) = self.lookup(key) {
-            return node.keys();
-        }
-        Box::new(std::iter::empty())
-    }
-
-    pub fn keys_with_fast<'a, T>(&'a self, key: T) -> Box<dyn Iterator<Item = Vec<K>> + 'a>
-    where
-        T: AsSlice<K>,
-    {
-        let key = key.as_slice();
-        if let Some(node) = self.lookup(key) {
-            return node.keys_fast();
-        }
-        Box::new(std::iter::empty())
-    }
-
     pub fn values<'a>(&'a self) -> Box<dyn Iterator<Item = &'a V> + 'a> {
         Box::new(self.iter_fast().map(|(_, value)| value))
     }
 
-    pub fn values_with<'a, T>(&'a self, key: T) -> Box<dyn Iterator<Item = &'a V> + 'a>
-    where
-        T: AsSlice<K>,
-    {
-        let key = key.as_slice();
-        if let Some(node) = self.lookup(key) {
-            return node.values();
-        }
-        Box::new(std::iter::empty())
+    pub fn values_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = &'a mut V> + 'a> {
+        Box::new(self.iter_fast_mut().map(|(_, value)| value))
     }
 
-    /// All the keys matching the given prefix and their values. Keys do not include the prefix for
-    /// performance reasons. The caller can reconstruct the full keys by prepending the prefix they
-    /// passed as a parameter if needed.
-    pub fn iter_with<'a, T>(&'a self, key: T) -> Box<dyn Iterator<Item = (Vec<K>, &'a V)> + 'a>
-    where
-        T: AsSlice<K>,
-    {
-        let key = key.as_slice();
-        if let Some(node) = self.lookup(key) {
-            return node.iter();
-        }
-        Box::new(std::iter::empty())
-    }
-
-    pub fn iter_with_fast<'a, T>(&'a self, key: T) -> Box<dyn Iterator<Item = (Vec<K>, &'a V)> + 'a>
-    where
-        T: AsSlice<K>,
-    {
-        let key = key.as_slice();
-        if let Some(node) = self.lookup(key) {
-            return node.iter_fast();
-        }
-        Box::new(std::iter::empty())
-    }
-
-    // Internal method returning the node for a given key.
-    fn lookup<T>(&self, key: T) -> Option<&RadixTree<K, V>>
+    /// Returns the subtree matching the given prefix.
+    pub fn at_prefix<T>(&self, key: T) -> Option<&RadixTree<K, V>>
     where
         T: AsSlice<K>,
     {
@@ -204,14 +185,14 @@ where
         }
         for (prefix, child) in &self.edges {
             if let Some(rest) = key.strip_prefix(prefix.as_slice()) {
-                return child.lookup(rest);
+                return child.at_prefix(rest);
             }
         }
         None
     }
 
     // Hate this duplication but haven't yet found a way to avoid it.
-    fn lookup_mut<T>(&mut self, key: T) -> Option<&mut RadixTree<K, V>>
+    pub fn at_prefix_mut<T>(&mut self, key: T) -> Option<&mut RadixTree<K, V>>
     where
         T: AsSlice<K>,
     {
@@ -221,26 +202,26 @@ where
         }
         for (prefix, child) in &mut self.edges {
             if let Some(rest) = key.strip_prefix(prefix.as_slice()) {
-                return child.lookup_mut(rest);
+                return child.at_prefix_mut(rest);
             }
         }
         None
     }
 
-    // Writing this in terms of lookup() hopefully doesn't hurt performance.
+    // Writing this in terms of at_prefix() hopefully doesn't hurt performance.
     pub fn get<T>(&self, key: T) -> Option<&V>
     where
         T: AsSlice<K>,
     {
         let key = key.as_slice();
-        self.lookup(key).and_then(|node| node.value.as_ref())
+        self.at_prefix(key).and_then(|node| node.value.as_ref())
     }
 
     pub fn get_mut<T>(&mut self, key: T) -> Option<&mut V>
     where
         T: AsSlice<K>,
     {
-        self.lookup_mut(key).and_then(|node| node.value.as_mut())
+        self.at_prefix_mut(key).and_then(|node| node.value.as_mut())
     }
 
     pub fn insert<T>(&mut self, key: T, value: V) -> Option<V>
@@ -351,7 +332,7 @@ mod tests {
         assert_eq!(tree.insert("foo", 42), None);
         assert_eq!(tree.value, None);
         assert_eq!(tree.edges.len(), 1);
-        let _node = tree.lookup("foo");
+        let _node = tree.at_prefix("foo");
         assert_eq!(_node.and_then(|node| node.value), Some(42));
         assert!(_node.is_some_and(|node| node.edges.is_empty()));
 
@@ -361,7 +342,7 @@ mod tests {
         assert_eq!(tree.get("baz"), Some(&7));
         // This should have split the "bar" node into a "ba" node with one "r" edge and one "z"
         // edge with the values of "bar" and "baz" respectively.
-        let _node = tree.lookup("ba");
+        let _node = tree.at_prefix("ba");
         assert!(_node.is_some_and(|node| node.value.is_none()));
         assert!(_node.is_some_and(|node| node.edges.len() == 2));
         assert!(_node.is_some_and(|node| {
@@ -383,7 +364,8 @@ mod tests {
         assert_eq!(tree.get("ba"), Some(&27));
 
         println!("Keys matching prefix \"ba\" and their values");
-        for kv in tree.iter_with("ba") {
+        let subtree = tree.at_prefix("ba");
+        for kv in subtree.iter() {
             println!("{kv:?}");
         }
 
