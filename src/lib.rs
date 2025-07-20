@@ -77,10 +77,10 @@ where
     }
 
     /// Creates a `RadixTree` with a single value at the root.
-    pub fn with_value(value: V) -> RadixTree<K, V> {
+    pub fn singleton(value: V) -> RadixTree<K, V> {
         RadixTree {
             count: 1,
-            root: RadixTreeNode::with_value(value),
+            root: RadixTreeNode::singleton(value),
         }
     }
 
@@ -164,7 +164,7 @@ where
         }
     }
 
-    fn with_value(value: V) -> RadixTreeNode<K, V> {
+    fn singleton(value: V) -> RadixTreeNode<K, V> {
         RadixTreeNode {
             value: Some(value),
             edges: Vec::new(),
@@ -275,6 +275,8 @@ where
     }
 
     /// Mutable variant of the [`values`] iterator.
+    ///
+    /// [`values`]: RadixTreeNode::values
     pub fn values_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = &'a mut V> + 'a> {
         Box::new(self.iter_fast_mut().map(|(_, value)| value))
     }
@@ -297,6 +299,8 @@ where
     }
 
     /// Mutable variant of [`at_prefix`].
+    ///
+    /// [`at_prefix`]: RadixTreeNode::at_prefix
     pub fn at_prefix_mut<T>(&mut self, key: T) -> Option<&mut RadixTreeNode<K, V>>
     where
         T: AsSlice<K>,
@@ -350,14 +354,14 @@ where
                     value: None,
                     edges: vec![
                         (prefix_rest, node),
-                        (key[common_len..].to_vec(), RadixTreeNode::with_value(value)),
+                        (key[common_len..].to_vec(), RadixTreeNode::singleton(value)),
                     ],
                 });
                 return None;
             }
         }
         self.edges
-            .push((key.to_vec(), RadixTreeNode::with_value(value)));
+            .push((key.to_vec(), RadixTreeNode::singleton(value)));
         None
     }
 
