@@ -302,7 +302,7 @@ where
         self.at_prefix_mut(key).and_then(|node| node.value.as_mut())
     }
 
-    pub fn insert<T>(&mut self, key: T, value: V) -> Option<V>
+    fn insert<T>(&mut self, key: T, value: V) -> Option<V>
     where
         T: AsSlice<K>,
     {
@@ -333,7 +333,7 @@ where
         None
     }
 
-    pub fn remove<T>(&mut self, key: T) -> Option<V>
+    fn remove<T>(&mut self, key: T) -> Option<V>
     where
         T: AsSlice<K>,
     {
@@ -374,13 +374,19 @@ where
         None
     }
 
-    pub fn clear(&mut self) {
+    fn clear(&mut self) {
         self.value.take();
         self.edges.clear();
     }
 }
 
 impl<K: PartialEq + Copy, V> Default for RadixTree<K, V> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<K: PartialEq + Copy, V> Default for RadixTreeNode<K, V> {
     fn default() -> Self {
         Self::new()
     }
