@@ -1,9 +1,15 @@
-/// A Radix Tree implementation. Written mostly for fun and probably sub-optimal in various ways.
-/// Hopefully not too buggy - there are a few tests but they don't even come close to covering
-/// every invariant.
 use std::ops::{Deref, DerefMut};
 
-use replace_with::*;
+use replace_with::replace_with_or_abort;
+
+/// A Radix Tree implementation. Great attention has been given to performance, but this has not
+/// yet been benchmarked, and the test coverage is quite low. Use at your own risk.
+///
+/// Children are represented using a vector, which is fine fan-out is low, but might be suboptimal
+/// if it isn't. Future versions might provide alternative ways to represent children, such as
+/// sorted vectors or lists, or hash maps.
+///
+/// The API is modeled after the standard HashMap type.
 
 pub trait AsSlice<K> {
     fn as_slice(&self) -> &[K];
@@ -62,6 +68,7 @@ impl<K, V> RadixTree<K, V>
 where
     K: PartialEq + Copy,
 {
+    /// Creates an empty `RadixTree`.
     pub fn new() -> RadixTree<K, V> {
         RadixTree {
             count: 0,
@@ -69,6 +76,7 @@ where
         }
     }
 
+    /// Creates a `RadixTree` with a single value at the root.
     pub fn with_value(value: V) -> RadixTree<K, V> {
         RadixTree {
             count: 1,
@@ -76,36 +84,43 @@ where
         }
     }
 
+    /// Returns the number of elements in the tree.
     pub fn len(&self) -> usize {
         self.count
     }
 
+    /// Returns `true` if the tree contains no elements.
     pub fn is_empty(&self) -> bool {
         self.count == 0
     }
 
+    /// Tries to insert a key-value pair into the tree, and returns a mutable reference to the
+    /// value in this entry.
     pub fn insert<T>(&mut self, key: T, value: V) -> Option<V>
     where
         T: AsSlice<K>,
     {
-        let opt = self.root.insert(key, value);
-        if opt.is_none() {
+        let optv = self.root.insert(key, value);
+        if optv.is_none() {
             self.count += 1;
         }
-        opt
+        optv
     }
 
+    /// Removes a key from the tree, returning the stored key and value if the key was previously
+    /// in the tree.
     pub fn remove<T>(&mut self, key: T) -> Option<V>
     where
         T: AsSlice<K>,
     {
-        let opt = self.root.remove(key);
-        if opt.is_some() {
+        let optv = self.root.remove(key);
+        if optv.is_some() {
             self.count -= 1;
         }
-        opt
+        optv
     }
 
+    /// Clears the map, removing all key-value pairs.
     pub fn clear(&mut self) {
         self.root.clear();
         self.count = 0;
@@ -129,6 +144,12 @@ where
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.root
+    }
+}
+
+impl<K: PartialEq + Copy, V> Default for RadixTree<K, V> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -236,18 +257,24 @@ where
         )
     }
 
+    /// An iterator visting all the keys using pre-order traversal.
     pub fn keys<'a>(&'a self) -> Box<dyn Iterator<Item = Vec<K>> + 'a> {
         Box::new(self.iter().map(|(key, _)| key))
     }
 
+    /// An iterator visting all the keys using pre-order traversal, but returning only the
+    /// corresponding prefix, and not the full key. This avoids the performance overhead incurred
+    /// by allocating and copying the prefixes when reconstructing the full keys.
     pub fn keys_fast<'a>(&'a self) -> Box<dyn Iterator<Item = Vec<K>> + 'a> {
         Box::new(self.iter_fast().map(|(key, _)| key))
     }
 
+    /// An iterator visting all the values using pre-order traversal.
     pub fn values<'a>(&'a self) -> Box<dyn Iterator<Item = &'a V> + 'a> {
         Box::new(self.iter_fast().map(|(_, value)| value))
     }
 
+    /// Mutable variant of the [`values`] iterator.
     pub fn values_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = &'a mut V> + 'a> {
         Box::new(self.iter_fast_mut().map(|(_, value)| value))
     }
@@ -269,7 +296,7 @@ where
         None
     }
 
-    // Hate this duplication but haven't yet found a way to avoid it.
+    /// Mutable variant of [`at_prefix`].
     pub fn at_prefix_mut<T>(&mut self, key: T) -> Option<&mut RadixTreeNode<K, V>>
     where
         T: AsSlice<K>,
@@ -286,7 +313,7 @@ where
         None
     }
 
-    // Writing this in terms of at_prefix() hopefully doesn't hurt performance.
+    /// Returns a reference to the value corresponding to the key.
     pub fn get<T>(&self, key: T) -> Option<&V>
     where
         T: AsSlice<K>,
@@ -295,6 +322,7 @@ where
         self.at_prefix(key).and_then(|node| node.value.as_ref())
     }
 
+    /// Returns a mutable reference to the value corresponding to the key.
     pub fn get_mut<T>(&mut self, key: T) -> Option<&mut V>
     where
         T: AsSlice<K>,
@@ -377,12 +405,6 @@ where
     fn clear(&mut self) {
         self.value.take();
         self.edges.clear();
-    }
-}
-
-impl<K: PartialEq + Copy, V> Default for RadixTree<K, V> {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
