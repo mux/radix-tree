@@ -1,6 +1,8 @@
 /// A Radix Tree implementation. Written mostly for fun and probably sub-optimal in various ways.
 /// Hopefully not too buggy - there are a few tests but they don't even come close to covering
 /// every invariant.
+use std::ops::{Deref, DerefMut};
+
 use replace_with::*;
 
 pub trait AsSlice<K> {
@@ -36,6 +38,15 @@ pub struct RadixTree<K, V>
 where
     K: PartialEq,
 {
+    count: usize,
+    root: RadixTreeNode<K, V>,
+}
+
+#[derive(PartialEq, Eq, Debug)]
+pub struct RadixTreeNode<K, V>
+where
+    K: PartialEq,
+{
     value: Option<V>,
     // Representing children as a vector of edges is very debatable. There are a lot of options
     // with different strengths and weaknesses. Using a HashMap would provide better performance to
@@ -44,7 +55,7 @@ where
     // without the need for moving elements around but would also have poor memory locality.
     // Maintaining a sorted vector (or list) would amortize prefix lookup at the cost of slightly
     // less efficient insertion, etc...
-    edges: Vec<(Vec<K>, RadixTree<K, V>)>,
+    edges: Vec<(Vec<K>, RadixTreeNode<K, V>)>,
 }
 
 impl<K, V> RadixTree<K, V>
@@ -53,13 +64,87 @@ where
 {
     pub fn new() -> RadixTree<K, V> {
         RadixTree {
-            value: None,
-            edges: Vec::new(),
+            count: 0,
+            root: RadixTreeNode::new(),
         }
     }
 
     pub fn with_value(value: V) -> RadixTree<K, V> {
         RadixTree {
+            count: 1,
+            root: RadixTreeNode::with_value(value),
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.count
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.count == 0
+    }
+
+    pub fn insert<T>(&mut self, key: T, value: V) -> Option<V>
+    where
+        T: AsSlice<K>,
+    {
+        let opt = self.root.insert(key, value);
+        if opt.is_none() {
+            self.count += 1;
+        }
+        opt
+    }
+
+    pub fn remove<T>(&mut self, key: T) -> Option<V>
+    where
+        T: AsSlice<K>,
+    {
+        let opt = self.root.remove(key);
+        if opt.is_some() {
+            self.count -= 1;
+        }
+        opt
+    }
+
+    pub fn clear(&mut self) {
+        self.root.clear();
+        self.count = 0;
+    }
+}
+
+impl<K, V> Deref for RadixTree<K, V>
+where
+    K: PartialEq,
+{
+    type Target = RadixTreeNode<K, V>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.root
+    }
+}
+
+impl<K, V> DerefMut for RadixTree<K, V>
+where
+    K: PartialEq,
+{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.root
+    }
+}
+
+impl<K, V> RadixTreeNode<K, V>
+where
+    K: PartialEq + Copy,
+{
+    fn new() -> RadixTreeNode<K, V> {
+        RadixTreeNode {
+            value: None,
+            edges: Vec::new(),
+        }
+    }
+
+    fn with_value(value: V) -> RadixTreeNode<K, V> {
+        RadixTreeNode {
             value: Some(value),
             edges: Vec::new(),
         }
@@ -77,19 +162,12 @@ where
         self.get(&[] as &[K])
     }
 
-    // We could cache the number of elements at the root so this is O(1) but on the other hand,
-    // the caller could easily maintain the length themselves.
     pub fn len(&self) -> usize {
         self.values().count()
     }
 
     pub fn is_empty(&self) -> bool {
         self.len() == 0
-    }
-
-    pub fn clear(&mut self) {
-        self.value.take();
-        self.edges.clear();
     }
 
     pub fn contains_key<T>(&self, key: T) -> bool
@@ -175,7 +253,7 @@ where
     }
 
     /// Returns the subtree matching the given prefix.
-    pub fn at_prefix<T>(&self, key: T) -> Option<&RadixTree<K, V>>
+    pub fn at_prefix<T>(&self, key: T) -> Option<&RadixTreeNode<K, V>>
     where
         T: AsSlice<K>,
     {
@@ -192,7 +270,7 @@ where
     }
 
     // Hate this duplication but haven't yet found a way to avoid it.
-    pub fn at_prefix_mut<T>(&mut self, key: T) -> Option<&mut RadixTree<K, V>>
+    pub fn at_prefix_mut<T>(&mut self, key: T) -> Option<&mut RadixTreeNode<K, V>>
     where
         T: AsSlice<K>,
     {
@@ -240,18 +318,18 @@ where
                 }
                 // We need to split the node.
                 let prefix_rest = prefix.drain(common_len..).collect();
-                replace_with_or_abort(child, |node| RadixTree {
+                replace_with_or_abort(child, |node| RadixTreeNode {
                     value: None,
                     edges: vec![
                         (prefix_rest, node),
-                        (key[common_len..].to_vec(), RadixTree::with_value(value)),
+                        (key[common_len..].to_vec(), RadixTreeNode::with_value(value)),
                     ],
                 });
                 return None;
             }
         }
         self.edges
-            .push((key.to_vec(), RadixTree::with_value(value)));
+            .push((key.to_vec(), RadixTreeNode::with_value(value)));
         None
     }
 
@@ -294,6 +372,11 @@ where
             return removed;
         }
         None
+    }
+
+    pub fn clear(&mut self) {
+        self.value.take();
+        self.edges.clear();
     }
 }
 
