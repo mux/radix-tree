@@ -21,10 +21,7 @@ impl AsSlice<u8> for String {
     }
 }
 
-impl<K> AsSlice<K> for &[K]
-where
-    K: Copy,
-{
+impl<K> AsSlice<K> for &[K] {
     fn as_slice(&self) -> &[K] {
         self
     }
