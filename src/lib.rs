@@ -191,6 +191,7 @@ where
         self.len() == 0
     }
 
+    /// Returns `true` if the tree contains a value for the specified key.
     pub fn contains_key<T>(&self, key: T) -> bool
     where
         T: AsSlice<K>,
@@ -201,6 +202,7 @@ where
     // All the iterators. We need into_iter() as well. The "fast" variants return relative keys to
     // avoid the performance overhead of reconstructing full keys.
 
+    /// An iterator returning all key-value pairs using pre-order traversal.
     pub fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = (Vec<K>, &'a V)> + 'a> {
         Box::new(
             self.value
@@ -217,6 +219,8 @@ where
         )
     }
 
+    /// An iterator returning all key-value pairs using pre-order traversal, with mutable
+    /// references to the values.
     pub fn iter_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = (Vec<K>, &'a mut V)> + 'a> {
         Box::new(
             self.value
