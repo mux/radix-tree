@@ -92,8 +92,10 @@ where
         self.edges.clear();
     }
 
-    // A bunch of iterators for various needs. We probably also need add keys_with(),
-    // keys_with_fast(), iter_with_fast() and into_iter() variants as well.
+    // A bunch of iterators for various needs. We need iter_mut() and into_iter() as well. All the
+    // "with" variants returns only elements matching the given prefix, and all the "fast" variants
+    // return relative keys to avoid the performance overhead of constructing full keys.
+
     pub fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = (Vec<K>, &'a V)> + 'a> {
         Box::new(
             self.value
@@ -110,7 +112,7 @@ where
         )
     }
 
-    // Like iter() but we don't construct the full keys - it can be useful for performance.
+    // Like iter() but we don't construct the full keys - useful for performance.
     pub fn iter_fast<'a>(&'a self) -> Box<dyn Iterator<Item = (Vec<K>, &'a V)> + 'a> {
         Box::new(
             self.value
@@ -127,6 +129,28 @@ where
 
     pub fn keys_fast<'a>(&'a self) -> Box<dyn Iterator<Item = Vec<K>> + 'a> {
         Box::new(self.iter_fast().map(|(key, _)| key))
+    }
+
+    pub fn keys_with<'a, T>(&'a self, key: T) -> Box<dyn Iterator<Item = Vec<K>> + 'a>
+    where
+        T: AsSlice<K>,
+    {
+        let key = key.as_slice();
+        if let Some(node) = self.lookup(key) {
+            return node.keys();
+        }
+        Box::new(std::iter::empty())
+    }
+
+    pub fn keys_with_fast<'a, T>(&'a self, key: T) -> Box<dyn Iterator<Item = Vec<K>> + 'a>
+    where
+        T: AsSlice<K>,
+    {
+        let key = key.as_slice();
+        if let Some(node) = self.lookup(key) {
+            return node.keys_fast();
+        }
+        Box::new(std::iter::empty())
     }
 
     pub fn values<'a>(&'a self) -> Box<dyn Iterator<Item = &'a V> + 'a> {
@@ -169,7 +193,7 @@ where
         Box::new(std::iter::empty())
     }
 
-    // Internal method returning the node for a given key. Used for testing and to implement get().
+    // Internal method returning the node for a given key.
     fn lookup<T>(&self, key: T) -> Option<&RadixTree<K, V>>
     where
         T: AsSlice<K>,
