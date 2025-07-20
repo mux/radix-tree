@@ -2,15 +2,6 @@ use std::ops::{Deref, DerefMut};
 
 use replace_with::replace_with_or_abort;
 
-/// A Radix Tree implementation. Great attention has been given to performance, but this has not
-/// yet been benchmarked, and the test coverage is quite low. Use at your own risk.
-///
-/// Children are represented using a vector, which is fine fan-out is low, but might be suboptimal
-/// if it isn't. Future versions might provide alternative ways to represent children, such as
-/// sorted vectors or lists, or hash maps.
-///
-/// The API is modeled after the standard HashMap type.
-
 pub trait AsSlice<K> {
     fn as_slice(&self) -> &[K];
 }
@@ -39,6 +30,18 @@ impl<K> AsSlice<K> for Vec<K> {
     }
 }
 
+/// A Radix Tree implementation. Great attention has been given to performance, but this has not
+/// yet been benchmarked, and the test coverage is quite low. Use at your own risk.
+///
+/// Children are represented using a vector, which is fine when the fan-out is low, but might be
+/// suboptimal when it isn't. Future versions might provide alternative ways to represent children,
+/// such as sorted vectors, sorted lists, or hash maps.
+///
+/// The main type is `RadixTree`, which maintains a count of the elements in the tree, allowing an
+/// O(1) implementation of `len`. All methods on `RadixTreeNode` can be used on `RadixTree` through
+/// the `Deref` and `DerefMut` implementations.
+///
+/// The API is modeled after the standard HashMap type.
 #[derive(PartialEq, Eq, Debug)]
 pub struct RadixTree<K, V>
 where
@@ -84,7 +87,7 @@ where
         }
     }
 
-    /// Returns the number of elements in the tree.
+    /// Returns the number of elements in the tree. This is O(1).
     pub fn len(&self) -> usize {
         self.count
     }
@@ -171,22 +174,28 @@ where
         }
     }
 
+    /// Returns `true` if the node is a leaf node.
     pub fn is_leaf(&self) -> bool {
         self.edges.is_empty()
     }
 
+    /// Returns `true` if the node is not a leaf node.
     pub fn is_node(&self) -> bool {
         !self.is_leaf()
     }
 
+    /// Returns a reference to the value at the root node.
     pub fn value(&self) -> Option<&V> {
         self.get(&[] as &[K])
     }
 
+    /// Returns the number of elements in a tree. Unlike the [`RadixTree`] implementation, this
+    /// needs to traverse the full tree and is thus O(n).
     pub fn len(&self) -> usize {
         self.values().count()
     }
 
+    /// Returns `true` if the tree contains no elements.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -237,6 +246,8 @@ where
         )
     }
 
+    /// An iterator returning all key-value pairs using pre-order traversal, but returning only
+    /// prefixes, and not fully reconstructed keys.
     pub fn iter_fast<'a>(&'a self) -> Box<dyn Iterator<Item = (Vec<K>, &'a V)> + 'a> {
         Box::new(
             self.value
@@ -247,6 +258,9 @@ where
         )
     }
 
+    /// Mutable variant of [`iter_fast`].
+    ///
+    /// [`iter_fast`]: RadixTreeNode::iter_fast
     pub fn iter_fast_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = (Vec<K>, &'a mut V)> + 'a> {
         Box::new(
             self.value
