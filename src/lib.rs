@@ -70,7 +70,7 @@ where
 
 impl<K, V> RadixTree<K, V>
 where
-    K: PartialEq + Copy,
+    K: PartialEq + Clone,
 {
     /// Creates an empty `RadixTree`.
     pub fn new() -> RadixTree<K, V> {
@@ -151,7 +151,10 @@ where
     }
 }
 
-impl<K: PartialEq + Copy, V> Default for RadixTree<K, V> {
+impl<K, V> Default for RadixTree<K, V>
+where
+    K: PartialEq + Clone,
+{
     fn default() -> Self {
         Self::new()
     }
@@ -159,7 +162,7 @@ impl<K: PartialEq + Copy, V> Default for RadixTree<K, V> {
 
 impl<K, V> RadixTreeNode<K, V>
 where
-    K: PartialEq + Copy,
+    K: PartialEq + Clone,
 {
     fn new() -> RadixTreeNode<K, V> {
         RadixTreeNode {
@@ -209,8 +212,8 @@ where
         self.get(key).is_some()
     }
 
-    // All the iterators. We need into_iter() as well. The "edges" variants return the edge labels
-    // and do not reconstruct the full keys. It can be useful for performance.
+    // All the iterators. No consuming interator implemented yet. The "edges" variants return the
+    // edge labels and do not reconstruct the full keys. It can be useful for performance.
     pub fn iter<'a>(&'a self) -> Iter<'a, K, V> {
         Iter {
             node: self,
@@ -423,7 +426,10 @@ where
     }
 }
 
-impl<K: PartialEq + Copy, V> Default for RadixTreeNode<K, V> {
+impl<K, V> Default for RadixTreeNode<K, V>
+where
+    K: PartialEq + Clone,
+{
     fn default() -> Self {
         Self::new()
     }
@@ -768,6 +774,33 @@ where
         }
     }
 }
+
+impl<'a, K, V> IntoIterator for &'a RadixTreeNode<K, V>
+where
+    K: PartialEq + Clone,
+{
+    type Item = (Vec<K>, &'a V);
+
+    type IntoIter = Iter<'a, K, V>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+impl<'a, K, V> IntoIterator for &'a mut RadixTreeNode<K, V>
+where
+    K: PartialEq + Clone,
+{
+    type Item = (Vec<K>, &'a mut V);
+
+    type IntoIter = IterMut<'a, K, V>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter_mut()
+    }
+}
+
 fn longest_common_prefix<T>(s1: &[T], s2: &[T]) -> usize
 where
     T: PartialEq,
