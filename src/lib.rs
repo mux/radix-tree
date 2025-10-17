@@ -1,3 +1,4 @@
+use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
 use replace_with::replace_with_or_abort;
@@ -208,95 +209,98 @@ where
         self.get(key).is_some()
     }
 
-    // All the iterators. We need into_iter() as well. The "fast" variants return relative keys to
-    // avoid the performance overhead of reconstructing full keys.
-
-    /// An iterator returning all key-value pairs using pre-order traversal.
-    pub fn iter<'a>(&'a self) -> Box<dyn Iterator<Item = (Vec<K>, &'a V)> + 'a> {
-        Box::new(
-            self.value
-                .as_ref()
-                .map(|value| (Vec::new(), value))
-                .into_iter()
-                .chain(self.edges.iter().flat_map(|(prefix, node)| {
-                    node.iter().map(|(inner_prefix, value)| {
-                        let mut prefix = prefix.clone();
-                        prefix.extend(inner_prefix);
-                        (prefix, value)
-                    })
-                })),
-        )
+    // All the iterators. We need into_iter() as well. The "edges" variants return the edge labels
+    // and do not reconstruct the full keys. It can be useful for performance.
+    pub fn iter<'a>(&'a self) -> Iter<'a, K, V> {
+        Iter {
+            node: self,
+            prefix: Vec::new(),
+            parents: Vec::new(),
+            yielded: false,
+            index: 0,
+        }
     }
 
-    /// An iterator returning all key-value pairs using pre-order traversal, with mutable
-    /// references to the values.
-    pub fn iter_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = (Vec<K>, &'a mut V)> + 'a> {
-        Box::new(
-            self.value
-                .as_mut()
-                .map(|value| (Vec::new(), value))
-                .into_iter()
-                .chain(self.edges.iter_mut().flat_map(|(prefix, node)| {
-                    node.iter_mut().map(|(inner_prefix, value)| {
-                        let mut prefix = prefix.clone();
-                        prefix.extend(inner_prefix);
-                        (prefix, value)
-                    })
-                })),
-        )
+    pub fn keys<'a>(&'a self) -> Keys<'a, K, V> {
+        Keys {
+            node: self,
+            parents: Vec::new(),
+            prefix: Vec::new(),
+            yielded: false,
+            index: 0,
+        }
     }
 
-    /// An iterator returning all key-value pairs using pre-order traversal, but returning only
-    /// prefixes, and not fully reconstructed keys.
-    pub fn iter_fast<'a>(&'a self) -> Box<dyn Iterator<Item = (Vec<K>, &'a V)> + 'a> {
-        Box::new(
-            self.value
-                .as_ref()
-                .map(|value| (Vec::new(), value))
-                .into_iter()
-                .chain(self.edges.iter().flat_map(|(_, node)| node.iter_fast())),
-        )
+    pub fn values<'a>(&'a self) -> Values<'a, K, V> {
+        Values {
+            node: self,
+            parents: Vec::new(),
+            yielded: false,
+            index: 0,
+        }
     }
 
-    /// Mutable variant of [`iter_fast`].
-    ///
-    /// [`iter_fast`]: RadixTreeNode::iter_fast
-    pub fn iter_fast_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = (Vec<K>, &'a mut V)> + 'a> {
-        Box::new(
-            self.value
-                .as_mut()
-                .map(|value| (Vec::new(), value))
-                .into_iter()
-                .chain(
-                    self.edges
-                        .iter_mut()
-                        .flat_map(|(_, node)| node.iter_fast_mut()),
-                ),
-        )
+    pub fn iter_edges<'a>(&'a self) -> IterEdges<'a, K, V> {
+        IterEdges {
+            node: self,
+            prefix: &[],
+            parents: Vec::new(),
+            yielded: false,
+            index: 0,
+        }
     }
 
-    /// An iterator visting all the keys using pre-order traversal.
-    pub fn keys<'a>(&'a self) -> Box<dyn Iterator<Item = Vec<K>> + 'a> {
-        Box::new(self.iter().map(|(key, _)| key))
+    pub fn iter_mut<'a>(&'a mut self) -> IterMut<'a, K, V> {
+        IterMut {
+            node: std::ptr::from_mut(self),
+            prefix: Vec::new(),
+            parents: Vec::new(),
+            yielded: false,
+            index: 0,
+            _marker: PhantomData,
+        }
     }
 
-    /// An iterator visting all the keys using pre-order traversal, but returning only the
-    /// corresponding prefix, and not the full key. This avoids the performance overhead incurred
-    /// by allocating and copying the prefixes when reconstructing the full keys.
-    pub fn keys_fast<'a>(&'a self) -> Box<dyn Iterator<Item = Vec<K>> + 'a> {
-        Box::new(self.iter_fast().map(|(key, _)| key))
+    pub fn iter_edges_mut<'a>(&'a mut self) -> IterEdgesMut<'a, K, V> {
+        IterEdgesMut {
+            node: std::ptr::from_mut(self),
+            prefix: &[],
+            parents: Vec::new(),
+            yielded: false,
+            index: 0,
+            _marker: PhantomData,
+        }
     }
 
-    /// An iterator visting all the values using pre-order traversal.
-    pub fn values<'a>(&'a self) -> Box<dyn Iterator<Item = &'a V> + 'a> {
-        Box::new(self.iter_fast().map(|(_, value)| value))
+    pub fn edges<'a>(&'a self) -> Edges<'a, K, V> {
+        Edges {
+            node: self,
+            parents: Vec::new(),
+            prefix: &[],
+            yielded: false,
+            index: 0,
+        }
     }
 
-    /// Mutable variant of the [`values`] iterator.
-    ///
-    /// [`values`]: RadixTreeNode::values
-    pub fn values_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = &'a mut V> + 'a> {
-        Box::new(self.iter_fast_mut().map(|(_, value)| value))
+    pub fn edges_mut<'a>(&'a mut self) -> IterEdgesMut<'a, K, V> {
+        IterEdgesMut {
+            node: std::ptr::from_mut(self),
+            prefix: &[],
+            parents: Vec::new(),
+            yielded: false,
+            index: 0,
+            _marker: PhantomData,
+        }
+    }
+
+    pub fn values_mut<'a>(&'a mut self) -> ValuesMut<'a, K, V> {
+        ValuesMut {
+            node: std::ptr::from_mut(self),
+            parents: Vec::new(),
+            yielded: false,
+            index: 0,
+            _marker: PhantomData,
+        }
     }
 
     /// Returns the subtree matching the given prefix.
@@ -436,6 +440,345 @@ impl<K: PartialEq + Copy, V> Default for RadixTreeNode<K, V> {
     }
 }
 
+pub struct Iter<'a, K, V>
+where
+    K: PartialEq,
+{
+    parents: Vec<(&'a RadixTreeNode<K, V>, usize, usize)>,
+    node: &'a RadixTreeNode<K, V>,
+    prefix: Vec<K>,
+    yielded: bool,
+    index: usize,
+}
+
+impl<'a, K, V> Iterator for Iter<'a, K, V>
+where
+    K: PartialEq + Clone,
+{
+    type Item = (Vec<K>, &'a V);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if !self.yielded
+                && let Some(val) = &self.node.value
+            {
+                self.yielded = true;
+                return Some((self.prefix.clone(), val));
+            }
+            if let Some((prefix, node)) = self.node.edges.get(self.index) {
+                self.parents
+                    .push((self.node, self.index + 1, self.prefix.len()));
+                self.node = node;
+                self.prefix.extend(prefix.iter().cloned());
+                self.yielded = false;
+                self.index = 0;
+            } else if let Some((node, index, prefix_len)) = self.parents.pop() {
+                self.prefix.truncate(prefix_len);
+                self.node = node;
+                self.index = index;
+                self.yielded = true;
+            } else {
+                return None;
+            }
+        }
+    }
+}
+
+pub struct Keys<'a, K, V>
+where
+    K: PartialEq,
+{
+    parents: Vec<(&'a RadixTreeNode<K, V>, usize, usize)>,
+    node: &'a RadixTreeNode<K, V>,
+    prefix: Vec<K>,
+    yielded: bool,
+    index: usize,
+}
+
+impl<'a, K, V> Iterator for Keys<'a, K, V>
+where
+    K: PartialEq + Clone,
+{
+    type Item = Vec<K>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if !self.yielded && self.node.value.is_some() {
+                self.yielded = true;
+                return Some(self.prefix.clone());
+            }
+            if let Some((prefix, node)) = self.node.edges.get(self.index) {
+                self.parents
+                    .push((self.node, self.index + 1, self.prefix.len()));
+                self.node = node;
+                self.prefix.extend(prefix.iter().cloned());
+                self.yielded = false;
+                self.index = 0;
+            } else if let Some((node, index, prefix_len)) = self.parents.pop() {
+                self.prefix.truncate(prefix_len);
+                self.node = node;
+                self.index = index;
+                self.yielded = true;
+            } else {
+                return None;
+            }
+        }
+    }
+}
+
+pub struct Values<'a, K, V>
+where
+    K: PartialEq,
+{
+    parents: Vec<(&'a RadixTreeNode<K, V>, usize)>,
+    node: &'a RadixTreeNode<K, V>,
+    yielded: bool,
+    index: usize,
+}
+
+impl<'a, K, V> Iterator for Values<'a, K, V>
+where
+    K: PartialEq,
+{
+    type Item = &'a V;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if !self.yielded
+                && let Some(val) = &self.node.value
+            {
+                self.yielded = true;
+                return Some(val);
+            }
+            if let Some((_, node)) = self.node.edges.get(self.index) {
+                self.parents.push((self.node, self.index + 1));
+                self.node = node;
+                self.yielded = false;
+                self.index = 0;
+            } else if let Some((node, index)) = self.parents.pop() {
+                self.node = node;
+                self.index = index;
+                self.yielded = true;
+            } else {
+                return None;
+            }
+        }
+    }
+}
+
+pub struct IterEdges<'a, K, V>
+where
+    K: PartialEq,
+{
+    parents: Vec<(&'a RadixTreeNode<K, V>, usize)>,
+    node: &'a RadixTreeNode<K, V>,
+    prefix: &'a [K],
+    yielded: bool,
+    index: usize,
+}
+
+impl<'a, K, V> Iterator for IterEdges<'a, K, V>
+where
+    K: PartialEq,
+{
+    type Item = (&'a [K], &'a V);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if !self.yielded
+                && let Some(val) = &self.node.value
+            {
+                self.yielded = true;
+                return Some((self.prefix, val));
+            }
+            if let Some((prefix, node)) = self.node.edges.get(self.index) {
+                self.parents.push((self.node, self.index + 1));
+                self.node = node;
+                self.prefix = prefix.as_slice();
+                self.yielded = false;
+                self.index = 0;
+            } else if let Some((node, index)) = self.parents.pop() {
+                self.node = node;
+                self.index = index;
+                self.yielded = true;
+            } else {
+                return None;
+            }
+        }
+    }
+}
+
+pub struct Edges<'a, K, V>
+where
+    K: PartialEq,
+{
+    parents: Vec<(&'a RadixTreeNode<K, V>, usize)>,
+    node: &'a RadixTreeNode<K, V>,
+    prefix: &'a [K],
+    yielded: bool,
+    index: usize,
+}
+
+impl<'a, K, V> Iterator for Edges<'a, K, V>
+where
+    K: PartialEq,
+{
+    type Item = &'a [K];
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if !self.yielded && self.node.value.is_some() {
+                self.yielded = true;
+                return Some(self.prefix);
+            }
+            if let Some((prefix, node)) = self.node.edges.get(self.index) {
+                self.parents.push((self.node, self.index + 1));
+                self.node = node;
+                self.prefix = prefix.as_slice();
+                self.yielded = false;
+                self.index = 0;
+            } else if let Some((node, index)) = self.parents.pop() {
+                self.node = node;
+                self.index = index;
+                self.yielded = true;
+            } else {
+                return None;
+            }
+        }
+    }
+}
+
+pub struct IterMut<'a, K, V>
+where
+    K: PartialEq,
+{
+    parents: Vec<(*mut RadixTreeNode<K, V>, usize, usize)>,
+    node: *mut RadixTreeNode<K, V>,
+    prefix: Vec<K>,
+    yielded: bool,
+    index: usize,
+    _marker: PhantomData<&'a mut V>,
+}
+
+impl<'a, K, V> Iterator for IterMut<'a, K, V>
+where
+    K: PartialEq + Clone,
+{
+    type Item = (Vec<K>, &'a mut V);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let node = unsafe { &mut *self.node };
+            if !self.yielded
+                && let Some(val) = &mut node.value
+            {
+                self.yielded = true;
+                return Some((self.prefix.clone(), val));
+            }
+            if let Some((prefix, node)) = node.edges.get_mut(self.index) {
+                self.parents
+                    .push((self.node, self.index + 1, self.prefix.len()));
+                self.node = node;
+                self.prefix.extend(prefix.iter().cloned());
+                self.yielded = false;
+                self.index = 0;
+            } else if let Some((node, index, prefix_len)) = self.parents.pop() {
+                self.prefix.truncate(prefix_len);
+                self.node = node;
+                self.index = index;
+                self.yielded = true;
+            } else {
+                return None;
+            }
+        }
+    }
+}
+
+pub struct IterEdgesMut<'a, K, V>
+where
+    K: PartialEq,
+{
+    parents: Vec<(*mut RadixTreeNode<K, V>, usize)>,
+    node: *mut RadixTreeNode<K, V>,
+    prefix: &'a [K],
+    yielded: bool,
+    index: usize,
+    _marker: PhantomData<&'a mut V>,
+}
+
+impl<'a, K, V> Iterator for IterEdgesMut<'a, K, V>
+where
+    K: PartialEq,
+{
+    type Item = (&'a [K], &'a mut V);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let node = unsafe { &mut *self.node };
+            if !self.yielded
+                && let Some(val) = &mut node.value
+            {
+                self.yielded = true;
+                return Some((self.prefix, val));
+            }
+            if let Some((prefix, node)) = node.edges.get_mut(self.index) {
+                self.parents.push((self.node, self.index + 1));
+                self.node = node;
+                self.prefix = prefix.as_slice();
+                self.yielded = false;
+                self.index = 0;
+            } else if let Some((node, index)) = self.parents.pop() {
+                self.node = node;
+                self.index = index;
+                self.yielded = true;
+            } else {
+                return None;
+            }
+        }
+    }
+}
+
+pub struct ValuesMut<'a, K, V>
+where
+    K: PartialEq,
+{
+    parents: Vec<(*mut RadixTreeNode<K, V>, usize)>,
+    node: *mut RadixTreeNode<K, V>,
+    yielded: bool,
+    index: usize,
+    _marker: PhantomData<&'a mut V>,
+}
+
+impl<'a, K, V> Iterator for ValuesMut<'a, K, V>
+where
+    K: PartialEq,
+{
+    type Item = &'a mut V;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let node = unsafe { &mut *self.node };
+            if !self.yielded
+                && let Some(val) = &mut node.value
+            {
+                self.yielded = true;
+                return Some(val);
+            }
+            if let Some((_, node)) = node.edges.get_mut(self.index) {
+                self.parents.push((self.node, self.index + 1));
+                self.node = node;
+                self.yielded = false;
+                self.index = 0;
+            } else if let Some((node, index)) = self.parents.pop() {
+                self.node = node;
+                self.index = index;
+                self.yielded = true;
+            } else {
+                return None;
+            }
+        }
+    }
+}
 fn longest_common_prefix<T>(s1: &[T], s2: &[T]) -> usize
 where
     T: PartialEq,
@@ -497,9 +840,10 @@ mod tests {
         assert_eq!(tree.get("ba"), Some(&27));
 
         println!("Keys matching prefix \"ba\" and their values");
-        let subtree = tree.at_prefix("ba");
-        for kv in subtree.iter() {
-            println!("{kv:?}");
+        let subtree = tree.at_prefix("ba").unwrap();
+        for (key, value) in subtree.iter() {
+            let key = unsafe { String::from_utf8_unchecked(key.to_vec()) };
+            println!("\"{key}\": {value}");
         }
 
         println!("All values");
@@ -508,15 +852,29 @@ mod tests {
         }
 
         println!("All keys and values");
-        for kv in tree.iter() {
-            println!("{kv:?}");
+        for (key, val) in tree.iter() {
+            let key = unsafe { String::from_utf8_unchecked(key.to_vec()) };
+            println!("\"{key}\": {val}");
         }
 
-        assert_eq!(tree.remove("bar"), Some(13));
+        println!("Fully reconstructed keys");
+        for key in tree.keys() {
+            let key = unsafe { String::from_utf8_unchecked(key.to_vec()) };
+            println!("\"{key}\"");
+        }
+
+        println!("Incrementing all values by 1");
+        for (key, val) in tree.iter_mut() {
+            let key = unsafe { String::from_utf8_unchecked(key.to_vec()) };
+            *val += 1;
+            println!("\"{key}\": {val}");
+        }
+
+        assert_eq!(tree.remove("bar"), Some(14));
         println!("{tree:?}");
         // XXX Check that we now have "ba" -> "rbie" and "ba" -> "z"
         assert_eq!(tree.get("bar"), None);
-        assert_eq!(tree.remove("baz"), Some(7));
+        assert_eq!(tree.remove("baz"), Some(8));
         assert_eq!(tree.remove("baz"), None);
     }
 }
