@@ -1,10 +1,10 @@
 [package]
-name = "radix-tree"
+name = "mux-radix-tree"
 version = "0.1.0"
 edition = "2024"
 authors = ["Maxime Henrion <mhenrion@gmail.com>"]
 license = "BSD-2-Clause"
-description = "A Radix Tree implementation"
+description = "A full-featured radix tree implementation"
 repository = "https://github.com/mux/radix-tree"
 readme = "README.md"
 
