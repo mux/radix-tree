@@ -231,6 +231,16 @@ where
         }
     }
 
+    pub fn edges<'a>(&'a self) -> Edges<'a, K, V> {
+        Edges {
+            node: self,
+            parents: Vec::new(),
+            prefix: &[],
+            yielded: false,
+            index: 0,
+        }
+    }
+
     pub fn values<'a>(&'a self) -> Values<'a, K, V> {
         Values {
             node: self,
@@ -262,27 +272,6 @@ where
     }
 
     pub fn iter_edges_mut<'a>(&'a mut self) -> IterEdgesMut<'a, K, V> {
-        IterEdgesMut {
-            node: std::ptr::from_mut(self),
-            prefix: &[],
-            parents: Vec::new(),
-            yielded: false,
-            index: 0,
-            _marker: PhantomData,
-        }
-    }
-
-    pub fn edges<'a>(&'a self) -> Edges<'a, K, V> {
-        Edges {
-            node: self,
-            parents: Vec::new(),
-            prefix: &[],
-            yielded: false,
-            index: 0,
-        }
-    }
-
-    pub fn edges_mut<'a>(&'a mut self) -> IterEdgesMut<'a, K, V> {
         IterEdgesMut {
             node: std::ptr::from_mut(self),
             prefix: &[],
